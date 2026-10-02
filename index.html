@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Une question ✨</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ====== À MODIFIER ====== voir aussi CONFIG dans le script en bas */
+  :root {
+    --bg1: #0b1033;
+    --bg2: #3a1f6b;
+    --gold: #ffd76a;
+    --pink: #ff7eb6;
+    --text: #fdf7ff;
+    --muted: #c9bde6;
+    --card: rgba(255, 255, 255, 0.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Fredoka", system-ui, sans-serif;
+    color: var(--text);
+    background: radial-gradient(ellipse at bottom, var(--bg2) 0%, var(--bg1) 70%);
+    background-color: var(--bg1);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .stars { position: fixed; inset: 0; pointer-events: none; }
+  .star {
+    position: absolute; width: 2px; height: 2px; border-radius: 50%;
+    background: #fff; animation: twinkle 3s infinite ease-in-out;
+  }
+  @keyframes twinkle { 0%, 100% { opacity: .2 } 50% { opacity: 1 } }
+
+  .card {
+    position: relative; z-index: 1;
+    width: 100%; max-width: 420px;
+    background: var(--card);
+    border: 1px solid rgba(255, 255, 255, .15);
+    border-radius: 24px;
+    padding: 32px 24px;
+    text-align: center;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  .emoji { font-size: 56px; line-height: 1; margin-bottom: 12px; }
+  h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+  h1 .name { color: var(--gold); }
+  p.sub { color: var(--muted); font-size: 17px; margin-bottom: 28px; }
+
+  .buttons { display: flex; gap: 16px; justify-content: center; align-items: center; min-height: 70px; }
+  button {
+    font-family: inherit; font-weight: 600; font-size: 20px;
+    border: none; border-radius: 999px; padding: 14px 32px; cursor: pointer;
+    transition: transform .2s ease;
+  }
+  #yes { background: var(--gold); color: #2a1650; box-shadow: 0 0 24px rgba(255, 215, 106, .5); }
+  #no {
+    background: rgba(255, 255, 255, .15); color: var(--text);
+    transition: left .25s ease, top .25s ease;
+    z-index: 5; white-space: nowrap;
+  }
+  #no.flee { position: fixed; }
+
+  .step { display: none; }
+  .step.active { display: block; animation: pop .4s ease; }
+  @keyframes pop { from { opacity: 0; transform: scale(.95) } to { opacity: 1; transform: none } }
+
+  label { display: block; text-align: left; font-size: 15px; color: var(--muted); margin: 16px 0 6px; }
+  input, textarea {
+    width: 100%; font-family: inherit; font-size: 17px;
+    background: rgba(255, 255, 255, .1); color: var(--text);
+    border: 1px solid rgba(255, 255, 255, .2); border-radius: 12px; padding: 12px;
+  }
+  input::-webkit-calendar-picker-indicator { filter: invert(1); }
+  textarea { min-height: 90px; resize: vertical; }
+  #send { margin-top: 24px; width: 100%; background: var(--gold); color: #2a1650; }
+  #send:disabled { opacity: .6; }
+  .error { color: var(--pink); font-size: 15px; margin-top: 12px; min-height: 20px; }
+
+  .confetti { position: fixed; top: -40px; font-size: 26px; pointer-events: none; z-index: 10; animation: fall linear forwards; }
+  @keyframes fall { to { transform: translateY(110vh) rotate(540deg); } }
+</style>
+</head>
+<body>
+<div class="stars" id="stars"></div>
+
+<main class="card">
+  <!-- Étape 1 : la question -->
+  <section class="step active" id="step1">
+    <div class="emoji">🏰</div>
+    <h1><span class="name" id="name"></span>, tu viens à Disneyland avec moi ?</h1>
+    <p class="sub">Les files d'attente, je ne garantis pas. Les sensations, oui.</p>
+    <div class="buttons">
+      <button id="yes">Oui</button>
+      <button id="no">Non</button>
+    </div>
+  </section>
+
+  <!-- Étape 2 : la date + un petit mot -->
+  <section class="step" id="step2">
+    <div class="emoji">🎢</div>
+    <h1>Je savais que tu n'avais pas peur 😁</h1>
+    <p class="sub">Dis-moi quand tu es dispo.</p>
+    <label for="date">Une date qui t'irait</label>
+    <input type="date" id="date">
+    <label for="msg">Un petit mot (facultatif)</label>
+    <textarea id="msg" placeholder="..."></textarea>
+    <button id="send">Envoyer ✨</button>
+    <div class="error" id="error"></div>
+  </section>
+
+  <!-- Étape 3 : merci -->
+  <section class="step" id="step3">
+    <div class="emoji">✨</div>
+    <h1>C'est noté !</h1>
+    <p class="sub" style="margin-bottom:0">Prépare-toi pour les sensations fortes.</p>
+  </section>
+</main>
+
+<script>
+  // ====== À MODIFIER ======
+  const CONFIG = {
+    name: "Léa",
+    // L'alias aléatoire que FormSubmit t'envoie après activation (jamais ton adresse mail : la page est publique)
+    email: "",
+  };
+  // ========================
+
+  document.getElementById("name").textContent = CONFIG.name;
+
+  // Étoiles en fond
+  const stars = document.getElementById("stars");
+  for (let i = 0; i < 80; i++) {
+    const s = document.createElement("div");
+    s.className = "star";
+    s.style.left = Math.random() * 100 + "%";
+    s.style.top = Math.random() * 100 + "%";
+    s.style.animationDelay = Math.random() * 3 + "s";
+    stars.appendChild(s);
+  }
+
+  // Le bouton Non qui s'enfuit
+  const yes = document.getElementById("yes");
+  const no = document.getElementById("no");
+  const noTexts = [
+    "T'es sûre ?", "Raté 😁", "Ta Dacia dirait oui", "Peur des sensations fortes ?", "Le bouton est en panne",
+    "Essaie encore", "Toujours pas", "Presque !", "Tu vas y arriver... ou pas",
+    "Mickey est déçu", "Le Non est en pause déj", "Ce bouton n'existe pas",
+    "Réfléchis encore 🤔", "Erreur 404 : Non introuvable", "Plus vite que toi 😏",
+  ];
+  let tries = 0;
+
+  function flee(e) {
+    if (e) e.preventDefault();
+    tries++;
+    if (!no.classList.contains("flee")) {
+      const r = no.getBoundingClientRect();
+      no.style.left = r.left + "px";
+      no.style.top = r.top + "px";
+      no.classList.add("flee");
+    }
+    no.textContent = noTexts[(tries - 1) % noTexts.length];
+    const margin = 16;
+    const w = no.offsetWidth, h = no.offsetHeight;
+    const maxX = window.innerWidth - w - margin;
+    const maxY = window.innerHeight - h - margin;
+    no.style.left = Math.max(margin, Math.random() * maxX) + "px";
+    no.style.top = Math.max(margin, Math.random() * maxY) + "px";
+    yes.style.transform = "scale(" + Math.min(1 + tries * 0.08, 1.6) + ")";
+  }
+  no.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") flee(e); });
+  no.addEventListener("pointerdown", flee);
+  no.addEventListener("click", flee);
+
+  function show(id) {
+    document.querySelectorAll(".step").forEach((s) => s.classList.remove("active"));
+    document.getElementById(id).classList.add("active");
+  }
+
+  function confetti() {
+    const items = ["✨", "🎢", "🏰", "⭐", "🎆", "💛"];
+    for (let i = 0; i < 40; i++) {
+      const c = document.createElement("div");
+      c.className = "confetti";
+      c.textContent = items[Math.floor(Math.random() * items.length)];
+      c.style.left = Math.random() * 100 + "vw";
+      c.style.animationDuration = 2 + Math.random() * 2 + "s";
+      c.style.animationDelay = Math.random() * 0.8 + "s";
+      document.body.appendChild(c);
+      setTimeout(() => c.remove(), 5000);
+    }
+  }
+
+  yes.addEventListener("click", () => {
+    no.style.display = "none";
+    confetti();
+    show("step2");
+  });
+
+  // Date minimum = aujourd'hui
+  const dateInput = document.getElementById("date");
+  dateInput.min = new Date().toISOString().slice(0, 10);
+
+  // Envoi du mail via FormSubmit
+  const send = document.getElementById("send");
+  const error = document.getElementById("error");
+  send.addEventListener("click", async () => {
+    error.textContent = "";
+    if (!dateInput.value) { error.textContent = "Choisis une date 😉"; return; }
+    if (!CONFIG.email) { error.textContent = "Le formulaire n'est pas encore branché."; return; }
+    send.disabled = true;
+    send.textContent = "Envoi...";
+    const d = new Date(dateInput.value + "T12:00:00");
+    const dateFr = d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    try {
+      const res = await fetch("https://formsubmit.co/ajax/" + CONFIG.email, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          _subject: "🎢 " + CONFIG.name + " a dit OUI pour Disneyland !",
+          _template: "box",
+          _captcha: "false",
+          Réponse: "OUI",
+          Date: dateFr,
+          "Petit mot": document.getElementById("msg").value || "(pas de mot)",
+          "Tentatives sur le bouton Non": String(tries),
+        }),
+      });
+      if (!res.ok) throw new Error(res.status);
+      confetti();
+      show("step3");
+    } catch (err) {
+      send.disabled = false;
+      send.textContent = "Envoyer ✨";
+      error.textContent = "Oups, ça n'est pas parti. Réessaie dans un instant.";
+    }
+  });
+</script>
+</body>
+</html>
