@@ -41,58 +41,60 @@
 
   .card {
     position: relative; z-index: 1;
-    width: 100%; max-width: 420px;
+    width: 100%; max-width: 340px;
     background: var(--card);
     border: 1px solid rgba(255, 255, 255, .15);
-    border-radius: 24px;
-    padding: 32px 24px;
+    border-radius: 20px;
+    padding: 24px 18px;
     text-align: center;
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
   }
-  .emoji { font-size: 56px; line-height: 1; margin-bottom: 12px; }
-  h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+  .emoji { font-size: 40px; line-height: 1; margin-bottom: 8px; }
+  h1 { font-size: 22px; line-height: 1.25; font-weight: 700; margin-bottom: 6px; }
   h1 .name { color: var(--gold); }
-  p.sub { color: var(--muted); font-size: 17px; margin-bottom: 28px; }
+  p.sub { color: var(--muted); font-size: 15px; margin-bottom: 20px; }
 
-  .buttons { display: flex; gap: 16px; justify-content: center; align-items: center; min-height: 70px; }
+  .buttons { display: flex; gap: 12px; justify-content: center; align-items: center; min-height: 56px; }
   button {
-    font-family: inherit; font-weight: 600; font-size: 20px;
-    border: none; border-radius: 999px; padding: 14px 32px; cursor: pointer;
+    font-family: inherit; font-weight: 600; font-size: 16px;
+    border: none; border-radius: 999px; padding: 10px 22px; cursor: pointer;
     transition: transform .2s ease;
   }
-  #yes { background: var(--gold); color: #2a1650; box-shadow: 0 0 24px rgba(255, 215, 106, .5); }
+  #yes { background: var(--gold); color: #2a1650; box-shadow: 0 0 20px rgba(255, 215, 106, .5); }
   #no {
-    background: rgba(255, 255, 255, .15); color: var(--text);
-    transition: left .25s ease, top .25s ease;
-    z-index: 5; white-space: nowrap;
+    background: rgba(255, 255, 255, .18); color: var(--text);
+    border: 1px solid rgba(255, 255, 255, .25);
+    white-space: nowrap; z-index: 5;
   }
-  #no.flee { position: fixed; }
+  /* En fuite, le bouton Non est déplacé dans <body> : dans la carte, le flou (backdrop-filter)
+     servirait de repère à position: fixed et le bouton sortirait de l'écran. */
+  #no.flee { position: fixed; transition: left .25s ease, top .25s ease; }
 
   .step { display: none; }
   .step.active { display: block; animation: pop .4s ease; }
   @keyframes pop { from { opacity: 0; transform: scale(.95) } to { opacity: 1; transform: none } }
 
-  label { display: block; text-align: left; font-size: 15px; color: var(--muted); margin: 16px 0 6px; }
+  label { display: block; text-align: left; font-size: 14px; color: var(--muted); margin: 12px 0 4px; }
   input, textarea {
-    width: 100%; font-family: inherit; font-size: 17px;
+    width: 100%; font-family: inherit; font-size: 16px;
     background: rgba(255, 255, 255, .1); color: var(--text);
-    border: 1px solid rgba(255, 255, 255, .2); border-radius: 12px; padding: 12px;
+    border: 1px solid rgba(255, 255, 255, .2); border-radius: 12px; padding: 10px;
   }
   input::-webkit-calendar-picker-indicator { filter: invert(1); }
-  textarea { min-height: 90px; resize: vertical; }
-  #send { margin-top: 24px; width: 100%; background: var(--gold); color: #2a1650; }
+  textarea { min-height: 70px; resize: vertical; }
+  #send { margin-top: 18px; width: 100%; background: var(--gold); color: #2a1650; }
   #send:disabled { opacity: .6; }
-  .error { color: var(--pink); font-size: 15px; margin-top: 12px; min-height: 20px; }
+  .error { color: var(--pink); font-size: 14px; margin-top: 10px; min-height: 18px; }
 
-  .confetti { position: fixed; top: -40px; font-size: 26px; pointer-events: none; z-index: 10; animation: fall linear forwards; }
+  .confetti { position: fixed; top: -40px; font-size: 24px; pointer-events: none; z-index: 10; animation: fall linear forwards; }
   @keyframes fall { to { transform: translateY(110vh) rotate(540deg); } }
 </style>
 </head>
 <body>
 <div class="stars" id="stars"></div>
 
-<main class="card">
+<main class="card" id="card">
   <!-- Étape 1 : la question -->
   <section class="step active" id="step1">
     <div class="emoji">🏰</div>
@@ -148,6 +150,7 @@
   }
 
   // Le bouton Non qui s'enfuit
+  const card = document.getElementById("card");
   const yes = document.getElementById("yes");
   const no = document.getElementById("no");
   const noTexts = [
@@ -156,29 +159,84 @@
     "Mickey est déçu", "Le Non est en pause déj", "Ce bouton n'existe pas",
     "Réfléchis encore 🤔", "Erreur 404 : Non introuvable", "Plus vite que toi 😏",
   ];
+  const MARGIN = 12;
   let tries = 0;
+  let lastPointerFlee = 0;
 
-  function flee(e) {
-    if (e) e.preventDefault();
+  function viewport() {
+    return {
+      w: Math.min(window.innerWidth, document.documentElement.clientWidth),
+      h: Math.min(window.innerHeight, document.documentElement.clientHeight),
+    };
+  }
+
+  function placeNo(x, y) {
+    no.style.left = x + "px";
+    no.style.top = y + "px";
+  }
+
+  // Une place au hasard, toujours dans l'écran, loin de l'ancienne, de préférence hors de la carte
+  function pickSpot() {
+    const { w, h } = viewport();
+    const bw = no.offsetWidth, bh = no.offsetHeight;
+    const maxX = Math.max(MARGIN, w - bw - MARGIN);
+    const maxY = Math.max(MARGIN, h - bh - MARGIN);
+    const cur = no.getBoundingClientRect();
+    const cardR = card.getBoundingClientRect();
+    const yesR = yes.getBoundingClientRect();
+    const hits = (x, y, r, pad) => x < r.right + pad && x + bw > r.left - pad && y < r.bottom + pad && y + bh > r.top - pad;
+    const random = () => ({ x: MARGIN + Math.random() * (maxX - MARGIN), y: MARGIN + Math.random() * (maxY - MARGIN) });
+    let fallback = null;
+    for (let i = 0; i < 40; i++) {
+      const p = random();
+      if (Math.hypot(p.x - cur.left, p.y - cur.top) < 100) continue;
+      if (!hits(p.x, p.y, cardR, 8)) return p;
+      if (!fallback && !hits(p.x, p.y, yesR, 12)) fallback = p;
+    }
+    return fallback || random();
+  }
+
+  function flee() {
     tries++;
-    if (!no.classList.contains("flee")) {
+    if (no.parentElement !== document.body) {
       const r = no.getBoundingClientRect();
-      no.style.left = r.left + "px";
-      no.style.top = r.top + "px";
+      document.body.appendChild(no);
       no.classList.add("flee");
+      placeNo(r.left, r.top);
+      no.getBoundingClientRect(); // part de sa place actuelle pour que l'animation se voie
     }
     no.textContent = noTexts[(tries - 1) % noTexts.length];
-    const margin = 16;
-    const w = no.offsetWidth, h = no.offsetHeight;
-    const maxX = window.innerWidth - w - margin;
-    const maxY = window.innerHeight - h - margin;
-    no.style.left = Math.max(margin, Math.random() * maxX) + "px";
-    no.style.top = Math.max(margin, Math.random() * maxY) + "px";
-    yes.style.transform = "scale(" + Math.min(1 + tries * 0.08, 1.6) + ")";
+    const p = pickSpot();
+    placeNo(p.x, p.y);
+    yes.style.transform = "scale(" + Math.min(1 + tries * 0.06, 1.5) + ")";
   }
-  no.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") flee(e); });
-  no.addEventListener("pointerdown", flee);
-  no.addEventListener("click", flee);
+
+  no.addEventListener("pointerenter", (e) => {
+    if (e.pointerType !== "mouse") return;
+    lastPointerFlee = Date.now();
+    flee();
+  });
+  no.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    lastPointerFlee = Date.now();
+    flee();
+  });
+  // Sur téléphone, un appui déclenche pointerdown puis click : on ignore ce click-là (sinon un texte sur deux sauterait)
+  no.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (Date.now() - lastPointerFlee > 800) flee();
+  });
+
+  // Si l'écran change de taille (rotation, barre d'adresse), le bouton reste visible
+  window.addEventListener("resize", () => {
+    if (!no.classList.contains("flee")) return;
+    const { w, h } = viewport();
+    const r = no.getBoundingClientRect();
+    placeNo(
+      Math.min(Math.max(MARGIN, r.left), Math.max(MARGIN, w - r.width - MARGIN)),
+      Math.min(Math.max(MARGIN, r.top), Math.max(MARGIN, h - r.height - MARGIN))
+    );
+  });
 
   function show(id) {
     document.querySelectorAll(".step").forEach((s) => s.classList.remove("active"));
