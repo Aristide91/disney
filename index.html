@@ -275,12 +275,13 @@
     if (!dateInput.value) { error.textContent = "Choisis une date 😉"; return; }
     if (!CONFIG.email) { error.textContent = "Le formulaire n'est pas encore branché."; return; }
     send.disabled = true;
-    send.textContent = "Envoi...";
+    send.textContent = "Envoi… (ça peut prendre une minute)";
     const d = new Date(dateInput.value + "T12:00:00");
     const dateFr = d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
     try {
       const res = await fetch("https://formsubmit.co/ajax/" + CONFIG.email, {
         method: "POST",
+        keepalive: true, // l'envoi continue même si la page est fermée
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({
           _subject: "🎢 " + CONFIG.name + " a dit OUI pour Disneyland !",
@@ -293,6 +294,9 @@
         }),
       });
       if (!res.ok) throw new Error(res.status);
+      const data = await res.json();
+      // FormSubmit répond 200 même quand il refuse l'envoi : on vérifie success
+      if (String(data.success) !== "true") throw new Error(data.message);
       confetti();
       show("step3");
     } catch (err) {
